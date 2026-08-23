@@ -14,7 +14,7 @@ deterministic, offline library + CLI. Full evidence trail in [PLAN.md](PLAN.md).
 
 ## Features
 
-- **Two formats, auto-detected** (or forced with `--format`):
+- **Three formats, auto-detected** (or forced with `--format`):
   - **V4A** (`*** Begin Patch` envelopes): Update / Add / Delete /
     Move-to rename, multiple `@@` hunks per file section — including the
     multi-hunk case Codex CLI itself mishandles.
@@ -23,6 +23,13 @@ deterministic, offline library + CLI. Full evidence trail in [PLAN.md](PLAN.md).
     trailing annotations on markers tolerated — while git merge-conflict
     markers (`<<<<<<< HEAD`) never parse as blocks. A whitespace-only
     SEARCH creates the file; an empty REPLACE deletes the matched lines.
+  - **Unified diffs** (git-style and plain `diff -ru` output): count-driven
+    hunk bodies (a removed line starting with `--` never reads as the next
+    header), `a/`/`b/` prefix stripping, `/dev/null` new/deleted files,
+    `\ No newline at end of file`, optional counts. `@@` start lines act as
+    positional hints: repeated context resolves to the hit nearest the
+    declared position instead of failing as ambiguous, and zero-context
+    insertion hunks (`@@ -5,0 +6,2 @@`) apply positionally.
 - **Ellipsis elision**: a lone `...` line in a SEARCH/REPLACE block stands
   for any run of lines; keeping `...` in the replacement preserves the
   omitted middle, dropping it removes it (aider's try-dot-dot-dots
@@ -101,7 +108,14 @@ def new():
 ```
 ```
 
-Auto-detection picks the format; `--format v4a|editblock` forces one.
+### Unified diff
+
+```bash
+git diff > fix.diff
+agentpatch apply fix.diff -C myrepo      # detected automatically
+```
+
+Auto-detection picks the format; `--format v4a|editblock|udiff` forces one.
 
 ### Library
 
@@ -118,7 +132,7 @@ if not res.ok:
 
 ## Roadmap
 
-- M3 (remaining): unified diffs, str_replace pair mode
+- M3 (remaining): str_replace pair mode (exact string replacement, not line lists)
 - M4: real-world failure-corpus benchmarks, ARCHITECTURE.md, v1.0
 
 ## Tests

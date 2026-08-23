@@ -99,7 +99,11 @@ detection before any write; dry-run by default in `check` mode.
 - **M3**: Unified diff ingestion; str_replace pair mode; "did you mean" hint
   generation (nearest-window SequenceMatcher reporting, aider-style feedback block).
   → s25: hints SHIPPED (matcher.nearest_window + failure messages carry
-  "nearest similar text at line N (x.xx similar)"); udiff + str_replace remain.
+  "nearest similar text at line N (x.xx similar)"). ✅ s26: udiff SHIPPED —
+  count-driven parser, @@ line_hint disambiguation (nearest hit wins without
+  weakening the no-hint uniqueness contract), zero-context insertions apply
+  positionally clamped to EOF, `\ No newline`, /dev/null sections, `--`
+  -prefixed removals never read as headers. str_replace pair mode remains.
 - **M4**: Indent-flex insertion re-indentation polish, CRLF policy knobs, benchmark
   corpus (replay real-world failed patches from public issues as fixtures),
   ARCHITECTURE.md, v1.0 tag.
@@ -123,6 +127,19 @@ detection before any write; dry-run by default in `check` mode.
   ellipsis matching is line-based head/tail like aider's try_dotdotdots — middle is
   preserved only when the replacement also contains `...`; Match.span_len carries
   ellipsis consumed spans so overlap rejection stays correct.
-- s25 lesson: exact-match on an UNINDENTED search against an INDENTED file line is
-  indent_flex by design (leading ws ignored) — tests must expect that, and the
-  reindent applies to insertions at that level.
+ - s25 lesson: exact-match on an UNINDENTED search against an INDENTED file line is
+ indent_flex by design (leading ws ignored) — tests must expect that, and the
+ reindent applies to insertions at that level.
+- s26 udiff decisions: hunk bodies consumed COUNT-DRIVEN (`len(old_lines)` reaches
+ old_count AND `len(new_lines)` reaches new_count; context lands in both lists) —
+ this is what makes `--- foo` removals safe and mirrors GNU patch. Pure-insertion
+ position hint = new_start-1 (NOT old_start: "@@ -5,0 +6,2 @@" inserts before new
+ line 6). UPDATE sections with headers but zero hunks = ParseError (prose that
+ looks like a diff must exit 2, per the s25 empty-parse-guard lesson); ADD/DELETE
+ with empty bodies stay legal (git emits them for empty files). detect order stays
+ v4a → editblock → udiff so fenced SEARCH blocks containing '--- ' aren't stolen.
+- s26 lesson: WRITE FIXTURE ARITHMETIC CAREFULLY — ctx+rem must equal old_count
+ and ctx+ins must equal new_count; two fixtures had impossible tallies and the
+ (correct) count-driven parser ate the next file section as hunk body instead of
+ erroring. Malformed-count garbage-in/garbage-out is GNU-faithful behavior; test
+ with well-formed diffs and pin malformed ones separately.
