@@ -109,9 +109,21 @@ detection before any write; dry-run by default in `check` mode.
   earlier results), byte-exact only (no cascade), overlapping-inclusive
   occurrence counting, near-miss diagnostics report WHICH relaxation would
   match and at what line; RFC6902 arrays never stolen by detection.
-- **M4**: Indent-flex insertion re-indentation polish, CRLF policy knobs, benchmark
-  corpus (replay real-world failed patches from public issues as fixtures),
-  ARCHITECTURE.md, v1.0 tag.
+- **M4 (s29, SHIPPED → v1.0.0)**: Real-world failure corpus mined from public
+  issues + two evidence-backed tolerances. Corpus: tests/corpus/*.json with
+  per-case provenance URL, raw patch text, pinned before/after file states,
+  run through formats.parse_patch → apply_patch by the loader test.
+  Entries: codex#26297 truncated envelope, aider#4716 partial-line fragment +
+  ambiguity variant, claude-code#26996 tab-vs-space drift.
+  Tolerance 1 — truncated V4A: missing `*** End Patch` parses to EOF
+  (codex #26297/#35361: strict rejection loops agents); mid-hunk truncation
+  damage still fails per-hunk visibly. Tolerance 2 — partial_line cascade
+  level (after fuzzy): verbatim fragment inside longer line(s), unique
+  occurrence required (overlaps counted), >= MIN_PARTIAL_LINE=40 chars joined;
+  replacement spliced between preserved head/tail of boundary lines; emits a
+  normal Match so overlap detection/back-to-front application are untouched.
+  Failure diagnostics report fragment occurrence counts and floor violations.
+  v1.0.0 tagged + released; ARCHITECTURE.md landed s27.
 
 ## Gotchas / decisions log
 
@@ -161,6 +173,15 @@ detection before any write; dry-run by default in `check` mode.
   Empty old_str is a ParseError; missing new_str = deletion; empty replace result
   at whole-file scope writes an empty file.
 - s27 lesson: SUBSTRING SEARCH FINDS PARTIAL-LINE MATCHES THE LINE CASCADE WOULD
-  MISS — smoke-test fixtures written for line-mode intuition misfired twice ("A"
-  matches both lines of "A\nA2"; replacing ":alpha" doesn't change "alpha = 0").
-  Write substring fixtures from substring semantics, not line lists.
+   MISS — smoke-test fixtures written for line-mode intuition misfired twice ("A"
+   matches both lines of "A\nA2"; replacing ":alpha" doesn't change "alpha = 0").
+   Write substring fixtures from substring semantics, not line lists.
+ - s29 lessons: (1) FUZZY OWNS NEAR-FULL-LINE FRAGMENTS by design — a fragment
+   covering >=~90% of its host line scores >=0.85 and fuzzy wins before
+   partial_line; fixtures for the partial path need fragments that are small
+   fractions of much longer prose lines. (2) The 40-char floor counts the JOINED
+   search text, so short cross-line anchors are rejected too. (3) A trailing
+   blank line in an editblock REPLACE is a real empty replacement line and
+   splits the host line when spliced — build helpers so they don't add one by
+   accident. (4) CRLF policy knobs dropped from M4 scope: _read_text already
+   detects + preserves CRLF; no knob survived contact with real mined shapes.

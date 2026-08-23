@@ -49,6 +49,20 @@ deterministic, offline library + CLI. Full evidence trail in [PLAN.md](PLAN.md).
      file's indentation base (tab-indented files stop failing)
   4. `ellipsis` — head/tail segments around `...` markers
   5. `fuzzy` — best sliding-window similarity >= threshold (default 0.85)
+  6. `partial_line` — last resort for summarized prose: when the SEARCH text
+     is a verbatim fragment of a longer line (models quote a sentence out of
+     a markdown paragraph instead of the whole line), it is spliced inside
+     that line. Guarded by a uniqueness requirement and a 40-character
+     minimum so short common snippets can never silently match (aider #4716).
+- **Truncated-envelope tolerance**: V4A patches whose stream was cut before
+  `*** End Patch` parse to EOF instead of hard-failing; any real damage from
+  the truncation still surfaces as a normal per-hunk failure with diagnostics.
+  Strict rejection here is what sends agents into repair loops
+  (codex #26297, #35361).
+- **Real-world failure corpus** (`tests/corpus/`): patches shaped like actual
+  reported failures — truncated envelopes, partial-line fragments, tab-vs-space
+  drift — each with issue-link provenance and pinned before/after file states,
+  run through the public API on every test pass.
 - **Uniqueness contract**: ambiguous matches fail loudly with a location count
   instead of silently editing the wrong block.
 - **"Did you mean" diagnostics**: when a hunk can't be located, the failure
@@ -154,9 +168,20 @@ if not res.ok:
                 print(f.path, h.index, h.message)  # feed back to the model
 ```
 
+## Why this exists
+
+- Warp reimplemented Codex's `apply_patch` and found a bug in OpenAI's own
+  parser; aider's fuzzy fallback is unreachable dead code on its apply path;
+  Claude Code users file hundreds of "edit failed to match" complaints.
+- Every harness re-solves this layer badly and independently. agentpatch is
+  the reusable version: deterministic, offline, dependency-free, with
+  diagnostics built for model self-correction.
+
 ## Roadmap
 
-- M4: real-world failure-corpus benchmarks, ARCHITECTURE.md, v1.0
+Stable at v1.0. Possible future work (only on demand): more corpus entries as
+new failure shapes surface, a Python-level "suggest fix" helper that rewrites
+a failed patch from its diagnostics.
 
 ## Tests
 

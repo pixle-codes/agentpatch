@@ -1,11 +1,14 @@
 """Layered matching cascade: locate a hunk's old lines inside file lines.
 
 Strategies, tried in order (first level with >=1 hit decides):
-  exact          byte-for-byte line equality
-  eol_tolerant   trailing whitespace / line endings ignored
-  indent_flex    leading whitespace ignored; insertions re-indented to match
-                 the file's indentation unit
-  fuzzy          difflib.SequenceMatcher over sliding windows, >= threshold
+exact          byte-for-byte line equality
+   eol_tolerant   trailing whitespace / line endings ignored
+   indent_flex    leading whitespace ignored; insertions re-indented to match
+                  the file's indentation unit
+   fuzzy          difflib.SequenceMatcher over sliding windows, >= threshold
+   partial_line   last resort: SEARCH text found verbatim INSIDE a longer
+                  line/run of lines (models summarize long prose lines),
+                  exactly once, at least MIN_PARTIAL_LINE chars
 
 Uniqueness contract: exactly one match at the deciding level succeeds; more
 than one is an ambiguity failure (looser levels are supersets of stricter
@@ -22,8 +25,10 @@ EOL_TOLERANT = "eol_tolerant"
 INDENT_FLEX = "indent_flex"
 FUZZY = "fuzzy"
 ELLIPSIS = "ellipsis"
+PARTIAL_LINE = "partial_line"
 
 DEFAULT_THRESHOLD = 0.85
+MIN_PARTIAL_LINE = 40
 
 
 @dataclass
@@ -84,6 +89,43 @@ def _fuzzy_locate(
     if best_i < 0 or best_score < threshold:
         return None
     return Match(FUZZY, offset + best_i, round(best_score, 4), list(new))
+
+
+def _partial_line_locate(
+    file_lines: list[str], old: list[str], new: list[str], offset: int = 0,
+) -> Match | None:
+    """Match SEARCH text that lives INSIDE longer line(s) of the file.
+
+    Models summarize long prose lines (markdown paragraphs, minified code)
+    instead of quoting them whole; line-based strategies can never match
+    those. The joined old text must occur verbatim exactly once and be at
+    least MIN_PARTIAL_LINE characters (aider #4716's uniqueness heuristic).
+    The replacement is spliced between the preserved head and tail of the
+    partially-covered boundary lines.
+    """
+    needle = "\n".join(old)
+    if len(needle) < MIN_PARTIAL_LINE:
+        return None
+    text = "\n".join(file_lines)
+    if count_substr(text, needle) != 1:
+        return None
+    pos = text.find(needle)
+    end = pos + len(needle)
+    start_line = offset + text.count("\n", 0, pos)
+    end_line = offset + text.count("\n", 0, end)
+    prefix = file_lines[start_line - offset][: pos - (text.rfind("\n", 0, pos) + 1)]
+    tail_nl = text.find("\n", end)
+    if tail_nl == -1:
+        tail_nl = len(text)
+    suffix = file_lines[end_line - offset][end - (text.rfind("\n", 0, end) + 1):]
+    repl_joined = "\n".join(new)
+    rlines = repl_joined.split("\n")
+    if len(rlines) == 1:
+        replacement = [prefix + repl_joined + suffix]
+    else:
+        replacement = [prefix + rlines[0]] + rlines[1:-1] + [rlines[-1] + suffix]
+    span_len = end_line - start_line + 1
+    return Match(PARTIAL_LINE, start_line, 1.0, replacement, span_len=span_len)
 
 
 def is_ellipsis_marker(line: str) -> bool:
@@ -193,7 +235,12 @@ def locate(
             if strategy == INDENT_FLEX:
                 repl = _reindent(old, new, file_lines[i])
             return Match(strategy, i, 1.0, repl)
-    return _fuzzy_locate(file_lines[search_from:], old, new, threshold, search_from)
+    m = _fuzzy_locate(file_lines[search_from:], old, new, threshold, search_from)
+    if m is not None:
+        return m
+    return _partial_line_locate(
+        file_lines[search_from:], old, new, search_from
+    )
 
 
 def nearest_window(

@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/Aider-AI/aider/issues/4716",
+  "note": "Models summarize long prose lines instead of quoting them whole; aider's line-based matcher refuses fragments of a longer line. agentpatch applies unique verbatim fragments via the partial_line cascade level.",
+  "patch": "content/post/web-browser-tab-tips/index.md\n<<<<<<< SEARCH\nNo more wasting time on skimming through unrelevant search result pages!\n=======\nNo more wasting time on skimming through irrelevant search result pages!\n>>>>>>> REPLACE\n",
+  "files": [
+    {
+      "path": "content/post/web-browser-tab-tips/index.md",
+      "before": "Intro paragraph about browser keyword support lives here at length.\nNo more wasting time on skimming through unrelevant search result pages! That single typo bugged the author for years.\n",
+      "after": "Intro paragraph about browser keyword support lives here at length.\nNo more wasting time on skimming through irrelevant search result pages! That single typo bugged the author for years.\n"
+    }
+  ]
+}

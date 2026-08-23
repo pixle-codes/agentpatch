@@ -1,0 +1,17 @@
+{
+  "source": "https://github.com/openai/codex/issues/26297",
+  "note": "Bedrock provider intermittently truncates V4A envelopes before the End Patch marker; codex hard-fails these and agents loop on retries (#35361). agentpatch parses the body to EOF.",
+  "patch": "*** Begin Patch\n*** Update File: src/tool_tree.py\n@@\n         filename = f\"document_{index}\"\n-        pass\n+        meta[\"downloaded_filename\"] = filename\n*** Update File: README.md\n@@\n-## Usage\n+## Usage notes\n",
+  "files": [
+    {
+      "path": "src/tool_tree.py",
+      "before": "def f():\n    filename = f\"document_{index}\"\n    pass\n",
+      "after": "def f():\n    filename = f\"document_{index}\"\n    meta[\"downloaded_filename\"] = filename\n"
+    },
+    {
+      "path": "README.md",
+      "before": "# Title\n## Usage\nbody\n",
+      "after": "# Title\n## Usage notes\nbody\n"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "source": "https://github.com/anthropics/claude-code/issues/26996",
+  "note": "Edit tool converts tabs to spaces on round-trip, so tab-indented SEARCH text never matches space-indented files and retries pile up. agentpatch's indent_flex level matches across the tab/space boundary and re-indents insertions to the file's unit.",
+  "patch": "*** Begin Patch\n*** Update File: main.py\n@@\n-\tprint(\"debug placeholder\")\n+\tlogging.getLogger(__name__).info(\"ready\")\n*** End Patch\n",
+  "files": [
+    {
+      "path": "main.py",
+      "before": "def main():\n    print(\"debug placeholder\")\n    return 0\n",
+      "after": "def main():\n    logging.getLogger(__name__).info(\"ready\")\n    return 0\n"
+    }
+  ]
+}

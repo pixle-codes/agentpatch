@@ -85,9 +85,11 @@ class ParseUpdateTests(unittest.TestCase):
         with self.assertRaises(InvalidPath):
             parse_patch("*** Begin Patch\n*** Delete File: ../secrets\n*** End Patch")
 
-    def test_missing_end_marker(self):
-        with self.assertRaises(ParseError):
-            parse_patch("*** Begin Patch\n*** Update File: f.py\n")
+    def test_missing_end_marker_tolerated(self):
+        p = parse_patch("*** Begin Patch\n*** Update File: f.py\n@@\n old\n+new\n")
+        self.assertEqual(len(p.ops), 1)
+        self.assertEqual(p.ops[0].hunks[0].old_lines, ["old"])
+        self.assertEqual(p.ops[0].hunks[0].new_lines, ["old", "new"])
 
     def test_missing_begin_marker(self):
         with self.assertRaises(ParseError):

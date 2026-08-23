@@ -92,9 +92,11 @@ def parse_patch(text: str) -> Patch:
     try:
         end = lines.index(_END)
     except ValueError:
-        end = -1
-    if end == -1:
-        raise ParseError('patch must end with "*** End Patch"')
+        # Truncated envelope (stream cut the tail): real harnesses reject
+        # these outright and send models into repair loops. The body up to
+        # EOF is usually well-formed, so parse it; any mid-hunk damage
+        # still fails later, per hunk, with diagnostics.
+        end = len(lines)
 
     patch = Patch()
     op: FileOp | None = None

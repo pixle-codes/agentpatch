@@ -1,0 +1,13 @@
+{
+  "source": "https://github.com/Aider-AI/aider/issues/4716",
+  "note": "Ambiguity guard for the same shape: when the fragment occurs more than once and no stricter level can separate them, the edit must fail with a diagnostic instead of guessing.",
+  "expect_failure_message_contains": ["partial-line fragment", "ambiguous"],
+  "patch": "notes.md\n<<<<<<< SEARCH\nthe release notes should mention the migration path for legacy configuration files\n=======\nthe release notes should mention the upgrade path for legacy configuration files\n>>>>>>> REPLACE\n",
+  "files": [
+    {
+      "path": "notes.md",
+      "before": "Draft for tomorrow's announcement post, still unreviewed: the release notes should mention the migration path for legacy configuration files somewhere in the first section, because support staff will link to it constantly.\nChecklist item carried over from the review doc, second occurrence for the record: the release notes should mention the migration path for legacy configuration files, phrased exactly this way, before Friday's freeze.\n",
+      "after": null
+    }
+  ]
+}

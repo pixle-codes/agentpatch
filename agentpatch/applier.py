@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from .matcher import (
     DEFAULT_THRESHOLD,
+    MIN_PARTIAL_LINE,
     _find_all,
     count_matches,
     count_substr,
@@ -199,6 +200,19 @@ def _locate_all(
                         msg += (
                             f"; nearest similar text at line {start + hint[0] + 1} "
                             f"({hint[1]:.2f} similar)"
+                        )
+                    frag = "\n".join(old)
+                    occ = count_substr("\n".join(file_lines[start:]), frag)
+                    if occ > 1:
+                        msg += (
+                            f"; the exact text occurs {occ} times as a "
+                            "partial-line fragment (ambiguous)"
+                        )
+                    elif occ == 1 and len(frag) < MIN_PARTIAL_LINE:
+                        msg += (
+                            "; a unique partial-line fragment exists but is "
+                            f"under the {MIN_PARTIAL_LINE}-character safety "
+                            "minimum; quote more of the line"
                         )
             results.append(HunkResult(idx, "failed", message=msg))
             continue

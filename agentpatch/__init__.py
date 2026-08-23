@@ -21,7 +21,7 @@ from .v4a import (
     Patch,
 )
 
-VERSION = "0.3.0"
+VERSION = "1.0.0"
 
 __all__ = [
     "ADD",
