@@ -14,19 +14,31 @@ deterministic, offline library + CLI. Full evidence trail in [PLAN.md](PLAN.md).
 
 ## Features
 
-- **V4A format** (`*** Begin Patch` envelopes): Update / Add / Delete /
-  Move-to rename, multiple `@@` hunks per file section — including the
-  multi-hunk case Codex CLI itself mishandles.
+- **Two formats, auto-detected** (or forced with `--format`):
+  - **V4A** (`*** Begin Patch` envelopes): Update / Add / Delete /
+    Move-to rename, multiple `@@` hunks per file section — including the
+    multi-hunk case Codex CLI itself mishandles.
+  - **SEARCH/REPLACE blocks** (the aider/Cline/Roo dialect): filename above
+    the fence or inside it, markdown fences stripped, 5–9 marker chars,
+    trailing annotations on markers tolerated — while git merge-conflict
+    markers (`<<<<<<< HEAD`) never parse as blocks. A whitespace-only
+    SEARCH creates the file; an empty REPLACE deletes the matched lines.
+- **Ellipsis elision**: a lone `...` line in a SEARCH/REPLACE block stands
+  for any run of lines; keeping `...` in the replacement preserves the
+  omitted middle, dropping it removes it (aider's try-dot-dot-dots
+  semantics, line-based).
 - **Layered matching cascade**, first unique hit wins:
   1. `exact`
   2. `eol_tolerant` — trailing whitespace / line endings ignored
   3. `indent_flex` — leading whitespace ignored, insertions re-indented to the
      file's indentation base (tab-indented files stop failing)
-  4. `fuzzy` — best sliding-window similarity >= threshold (default 0.85)
+  4. `ellipsis` — head/tail segments around `...` markers
+  5. `fuzzy` — best sliding-window similarity >= threshold (default 0.85)
 - **Uniqueness contract**: ambiguous matches fail loudly with a location count
   instead of silently editing the wrong block.
 - **Per-file atomicity**: one bad hunk leaves the whole file untouched.
-- **Overlap detection**: overlapping hunks are both rejected.
+- **Overlap detection**: overlapping hunks are both rejected (ellipsis hunks
+  count their full consumed span).
 - **Safety**: relative paths only; `..`, absolute paths, and symlink escapes
   out of the root are blocked; binary files reported, not mangled; CRLF and
   missing-final-newline preserved.
@@ -71,6 +83,23 @@ JSON report (truncated):
              "hunks_applied": 1, "hunks_failed": 0}}
 ```
 
+### SEARCH/REPLACE blocks
+
+```text
+src/app.py
+```python
+<<<<<<< SEARCH
+def old():
+    return 1
+=======
+def new():
+    return 2
+>>>>>>> REPLACE
+```
+```
+
+Auto-detection picks the format; `--format v4a|editblock` forces one.
+
 ### Library
 
 ```python
@@ -86,14 +115,13 @@ if not res.ok:
 
 ## Roadmap
 
-- M2: aider-style SEARCH/REPLACE blocks + cross-format auto-detection
 - M3: unified diffs, str_replace pairs, "did you mean" nearest-context hints
 - M4: real-world failure-corpus benchmarks, ARCHITECTURE.md, v1.0
 
 ## Tests
 
 ```bash
-python3 -m unittest discover -s tests
+python3 -m unittest discover -s tests -t .
 ```
 
 ## License

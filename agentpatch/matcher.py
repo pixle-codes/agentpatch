@@ -21,6 +21,7 @@ EXACT = "exact"
 EOL_TOLERANT = "eol_tolerant"
 INDENT_FLEX = "indent_flex"
 FUZZY = "fuzzy"
+ELLIPSIS = "ellipsis"
 
 DEFAULT_THRESHOLD = 0.85
 
@@ -31,6 +32,7 @@ class Match:
     line_start: int          # 0-based index into file lines
     similarity: float        # 1.0 for non-fuzzy strategies
     replacement: list[str]   # new lines, possibly re-indented
+    span_len: int | None = None  # consumed file lines; None -> caller uses len(old)
 
 
 def leading_ws(line: str) -> str:
@@ -82,6 +84,74 @@ def _fuzzy_locate(
     if best_i < 0 or best_score < threshold:
         return None
     return Match(FUZZY, offset + best_i, round(best_score, 4), list(new))
+
+
+def is_ellipsis_marker(line: str) -> bool:
+    return line.strip() == "..."
+
+
+def has_ellipsis(lines: list[str]) -> bool:
+    return any(is_ellipsis_marker(l) for l in lines)
+
+
+def _split_ellipsis(lines: list[str]) -> tuple[list[str], list[str]]:
+    """Head = lines before the first marker, tail = after the last one."""
+    idxs = [i for i, l in enumerate(lines) if is_ellipsis_marker(l)]
+    if not idxs:
+        return list(lines), []
+    return lines[: idxs[0]], lines[idxs[-1] + 1 :]
+
+
+def locate_ellipsis(
+    file_lines: list[str],
+    old: list[str],
+    new: list[str],
+    search_from: int = 0,
+) -> Match | None:
+    """Match a SEARCH whose lone `...` line stands for any run of lines.
+
+    Mirrors aider's try_dotdotdots: head/tail segments of the pattern are
+    located in order; a `...` in the replacement preserves the omitted
+    middle, its absence drops it. Exactly one valid head/tail placement
+    must exist (uniqueness contract).
+    """
+    head, tail = _split_ellipsis(old)
+    if not head and not tail:
+        return None
+    for key in (lambda l: l, str.rstrip):
+        head_hits = [
+            i
+            for i in range(search_from, len(file_lines) - len(head) + 1)
+            if head and [key(l) for l in file_lines[i : i + len(head)]] == [key(l) for l in head]
+        ]
+        tail_hits = [
+            j
+            for j in range(search_from, len(file_lines) - len(tail) + 1)
+            if tail and [key(l) for l in file_lines[j : j + len(tail)]] == [key(l) for l in tail]
+        ]
+        if not head:
+            pairs = [(j, j + len(tail)) for j in tail_hits]
+        elif not tail:
+            pairs = [(i, i + len(head)) for i in head_hits]
+        else:
+            pairs = [
+                (i, j + len(tail))
+                for i in head_hits
+                for j in tail_hits
+                if j >= i + len(head)
+            ]
+        if len(pairs) > 1 or not pairs:
+            continue
+        start, end = pairs[0]
+        middle = file_lines[start + len(head) : end - len(tail)]
+        new_head, new_tail = _split_ellipsis(new)
+        repl = (
+            list(new_head) + middle + list(new_tail)
+            if has_ellipsis(new)
+            else list(new_head) + list(new_tail)
+        )
+        return Match(ELLIPSIS, start, 1.0, repl, span_len=end - start)
+    return None
 
 
 def locate(

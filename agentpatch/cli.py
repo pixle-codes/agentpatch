@@ -11,9 +11,11 @@ import json
 import sys
 
 from .applier import ApplyError, PatchResult, apply_patch
-from .v4a import ParseError, detect_format, parse_patch
+from .formats import EDITBLOCK, V4A, detect, parse_patch
+from .v4a import ParseError
 
-VERSION = "0.1.0"
+VERSION = "0.2.0"
+_FORMAT_CHOICES = ("auto", V4A, EDITBLOCK)
 
 
 def _read_patch(path: str) -> str:
@@ -48,13 +50,17 @@ def _print_text(res: PatchResult) -> None:
     )
 
 
+def _resolve_format(text: str, requested: str) -> str | None:
+    return detect(text) if requested == "auto" else (requested or None)
+
+
 def cmd_parse(args: argparse.Namespace) -> int:
     try:
         text = _read_patch(args.patchfile)
     except OSError as exc:
         print(f"error: cannot read patch: {exc}", file=sys.stderr)
         return 2
-    fmt = detect_format(text)
+    fmt = _resolve_format(text, args.format)
     if args.json:
         if fmt is None:
             print(json.dumps({"error": "unrecognized patch format"}))
@@ -63,7 +69,7 @@ def cmd_parse(args: argparse.Namespace) -> int:
         print("error: unrecognized patch format", file=sys.stderr)
         return 2
     try:
-        patch = parse_patch(text)
+        patch = parse_patch(text, fmt)
     except ParseError as exc:
         if args.json:
             print(json.dumps({"format": fmt, "error": str(exc)}))
@@ -112,11 +118,12 @@ def cmd_apply(args: argparse.Namespace) -> int:
     except OSError as exc:
         print(f"error: cannot read patch: {exc}", file=sys.stderr)
         return 2
-    if detect_format(text) is None:
+    fmt = _resolve_format(text, args.format)
+    if fmt is None:
         print("error: unrecognized patch format", file=sys.stderr)
         return 2
     try:
-        patch = parse_patch(text)
+        patch = parse_patch(text, fmt)
     except ParseError as exc:
         print(f"parse error: {exc}", file=sys.stderr)
         return 2
@@ -137,15 +144,24 @@ def cmd_apply(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agentpatch",
-        description="Parse and apply coding-agent patches (V4A today, more formats "
-        "coming) with layered fuzzy matching and structured diagnostics.",
+        description="Parse and apply coding-agent patches (V4A, SEARCH/REPLACE "
+        "blocks) with layered fuzzy matching and structured diagnostics.",
     )
     p.add_argument("--version", action="version", version=f"agentpatch {VERSION}")
     sub = p.add_subparsers(dest="command", required=True)
 
+    def add_format_arg(sp: argparse.ArgumentParser) -> None:
+        sp.add_argument(
+            "--format",
+            choices=_FORMAT_CHOICES,
+            default="auto",
+            help="force a patch format instead of auto-detection (default: auto)",
+        )
+
     pp = sub.add_parser("parse", help="parse a patch and show its operations")
     pp.add_argument("patchfile", help="path to the patch file, or '-' for stdin")
     pp.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    add_format_arg(pp)
     pp.set_defaults(func=cmd_parse)
 
     pa = sub.add_parser("apply", help="apply a patch to files under --root")
@@ -155,6 +171,7 @@ def build_parser() -> argparse.ArgumentParser:
     pa.add_argument("--fuzzy-threshold", type=float, default=0.85,
                     help="minimum similarity for fuzzy matches (default 0.85)")
     pa.add_argument("--json", action="store_true", help="emit machine-readable JSON")
+    add_format_arg(pa)
     pa.set_defaults(func=cmd_apply)
     return p
 

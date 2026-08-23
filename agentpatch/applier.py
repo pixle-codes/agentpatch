@@ -9,7 +9,14 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass, field
 
-from .matcher import DEFAULT_THRESHOLD, _find_all, count_matches, locate
+from .matcher import (
+    DEFAULT_THRESHOLD,
+    _find_all,
+    count_matches,
+    has_ellipsis,
+    locate,
+    locate_ellipsis,
+)
 from .v4a import DELETE, Patch
 
 
@@ -151,17 +158,27 @@ def _locate_all(
             )
             continue
         start = _anchor_region(file_lines, hunk.anchor)
-        m = locate(file_lines, old, new, threshold, search_from=start)
+        if has_ellipsis(old):
+            m = locate_ellipsis(file_lines, old, new, search_from=start)
+        else:
+            m = locate(file_lines, old, new, threshold, search_from=start)
         if m is None:
-            n = count_matches(file_lines[start:], old)
-            msg = (
-                f"hunk matches {n} locations (ambiguous; add more unique context)"
-                if n > 1
-                else "could not find the target lines in this file"
-            )
+            if has_ellipsis(old):
+                msg = (
+                    "'...' pattern is ambiguous or unmatched; "
+                    "add more unique context lines"
+                )
+            else:
+                n = count_matches(file_lines[start:], old)
+                msg = (
+                    f"hunk matches {n} locations (ambiguous; add more unique context)"
+                    if n > 1
+                    else "could not find the target lines in this file"
+                )
             results.append(HunkResult(idx, "failed", message=msg))
             continue
-        placed.append(_Placed(m.line_start, len(old), m.replacement, idx))
+        span = m.span_len if m.span_len is not None else len(old)
+        placed.append(_Placed(m.line_start, span, m.replacement, idx))
         results.append(
             HunkResult(idx, "applied", strategy=m.strategy, similarity=m.similarity,
                        line_start=m.line_start + 1)

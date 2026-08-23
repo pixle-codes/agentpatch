@@ -88,12 +88,14 @@ detection before any write; dry-run by default in `check` mode.
 
 ## Milestones
 
-- **M1 (this session)**: V4A format end-to-end — parser (Update/Add/Delete/Rename,
+- **M1 (s23, SHIPPED)**: V4A format end-to-end — parser (Update/Add/Delete/Rename,
   multiple hunks incl. the Warp edge case), matcher cascade levels 1–3, CLI
   `parse`/`apply` with `--json --dry-run --root --fuzzy-threshold`, exit-code
   contract, full test suite, README, publish.
-- **M2**: SEARCH/REPLACE block format (aider/Cline/Roo dialect incl. filename-above-
-  fence rule, ellipsis elision), auto-detection between formats.
+- **M2 (this session, s25)**: SEARCH/REPLACE block format (aider/Cline/Roo
+  dialect incl. filename-above-fence rule, ellipsis elision), auto-detection
+  between formats. ✅ DONE — editblock.py parser + formats.py dispatch +
+  ellipsis strategy in matcher + `--format` CLI flag; 95 tests green.
 - **M3**: Unified diff ingestion; str_replace pair mode; "did you mean" hint
   generation (nearest-window SequenceMatcher reporting, aider-style feedback block).
 - **M4**: Indent-flex insertion re-indentation polish, CRLF policy knobs, benchmark
@@ -108,3 +110,17 @@ detection before any write; dry-run by default in `check` mode.
 - Never flag or rewrite content outside ops; delete-file requires exact path match.
 - Exit codes: 0 = all clean, 1 = any hunk/file failure (incl. dry-run findings),
   2 = usage/IO errors. Pinned in tests.
+- s25 editblock decisions: markers accept 5–9 chars + trailing annotations but the
+  keywords are literal so `<<<<<<< HEAD` merge markers never parse as blocks;
+  filename resolution = backward scan (skip blanks/fences, strip decorations,
+  require extension-ish pathiness) with fallback forward scan inside the fence
+  (Cline style); a whitespace-only SEARCH maps to an ADD op (fails if file exists —
+  deliberate divergence from aider's overwrite); empty REPLACE = deletion hunk;
+  both sides empty = ParseError; undecorated prose directly above a block stops the
+  backward filename scan (ParseError beats grabbing a stale earlier filename);
+  ellipsis matching is line-based head/tail like aider's try_dotdotdots — middle is
+  preserved only when the replacement also contains `...`; Match.span_len carries
+  ellipsis consumed spans so overlap rejection stays correct.
+- s25 lesson: exact-match on an UNINDENTED search against an INDENTED file line is
+  indent_flex by design (leading ws ignored) — tests must expect that, and the
+  reindent applies to insertions at that level.
