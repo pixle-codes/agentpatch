@@ -13,12 +13,14 @@ from .matcher import (
     DEFAULT_THRESHOLD,
     _find_all,
     count_matches,
+    count_substr,
+    diagnose_substr,
     has_ellipsis,
     locate,
     locate_ellipsis,
     nearest_window,
 )
-from .v4a import DELETE, Patch
+from .v4a import DELETE, SUBSTR, Patch
 
 HINT_FLOOR = 0.40
 
@@ -153,6 +155,8 @@ def _locate_all(
     placed: list[_Placed] = []
     results: list[HunkResult] = []
     for idx, hunk in enumerate(op_hunks):
+        if hunk.mode == SUBSTR:
+            continue  # handled sequentially by _apply_substrings
         old, new = hunk.old_lines, hunk.new_lines
         if not old:
             if hunk.line_hint is not None and new:
@@ -214,6 +218,78 @@ def _locate_all(
             continue
         keep.append(p)
     return keep, results
+
+
+def _apply_substrings(
+    lines: list[str], indexed: list[tuple[int, object]]
+) -> tuple[list[str] | None, list[HunkResult], bool | None]:
+    """Apply substr-mode hunks SEQUENTIALLY against the evolving text.
+
+    `indexed` carries (original op.hunks position, hunk) pairs so result
+    indexes stay aligned with the op's hunk list. Each hunk searches the
+    result of the previous one (tool-call semantics). Exact matching only:
+    0 occurrences fails (with a near-miss hint when one exists), >1 fails as
+    ambiguous unless replace_all. Returns (new_lines_or_None_on_failure,
+    results, trailing_newline_override) where a trailing override of None
+    means "keep the file's original".
+    """
+    text = "\n".join(lines)
+    results: list[HunkResult] = []
+    failed = False
+    for idx, hunk in indexed:
+        if failed:
+            results.append(
+                HunkResult(idx, "failed", message="skipped: an earlier hunk failed")
+            )
+            continue
+        search = "\n".join(hunk.old_lines)
+        replace = "\n".join(hunk.new_lines)
+        occurrences = count_substr(text, search)
+        if occurrences == 0:
+            msg = "exact text not found in this file"
+            hint = diagnose_substr(text, search)
+            if hint:
+                msg += f"; {hint}"
+            results.append(HunkResult(idx, "failed", message=msg))
+            failed = True
+            continue
+        if occurrences > 1 and not hunk.replace_all:
+            results.append(
+                HunkResult(
+                    idx,
+                    "failed",
+                    message=(
+                        f"exact text occurs {occurrences} times (ambiguous); "
+                        "add surrounding context or set replace_all"
+                    ),
+                )
+            )
+            failed = True
+            continue
+        pos = text.find(search)
+        line_start = text.count("\n", 0, pos) + 1
+        text = (
+            text.replace(search, replace)
+            if hunk.replace_all
+            else text[:pos] + replace + text[pos + len(search):]
+        )
+        results.append(
+            HunkResult(idx, "applied", strategy=SUBSTR, similarity=1.0,
+                       line_start=line_start)
+        )
+    if failed:
+        return None, results, None
+
+    trailing: bool | None = None
+    if not text:
+        out = []
+    elif text.endswith("\n"):
+        # A splice extended a newline to EOF; carry that into the write.
+        out = text[:-1].split("\n")
+        trailing = True
+    else:
+        out = text.split("\n")
+    return out, results, trailing
 
 
 def apply_patch(
@@ -287,6 +363,22 @@ def apply_patch(
         for p in reversed(placed):
             out[p.start : p.start + p.old_len] = p.replacement
 
+        substr_pairs = [
+            (i, h) for i, h in enumerate(op.hunks) if h.mode == SUBSTR
+        ]
+        sub_trailing: bool | None = None
+        if substr_pairs:
+            sub_lines, sub_results, sub_trailing = _apply_substrings(
+                out, substr_pairs
+            )
+            hunks_res.extend(sub_results)
+            fr.hunks = hunks_res
+            if sub_lines is None:
+                fr.status = "failed"
+                result.files.append(fr)
+                continue
+            out = sub_lines
+
         dest = target
         if op.rename_to is not None:
             dest = os.path.join(root_real, op.rename_to)
@@ -299,7 +391,11 @@ def apply_patch(
             fr.message = "would rename" if dry_run else None
 
         if not dry_run:
-            _write_text(dest, out, trailing_nl, crlf)
+            _write_text(
+                dest, out,
+                trailing_nl if sub_trailing is None else sub_trailing,
+                crlf,
+            )
             if dest != target:
                 os.remove(target)
         result.files.append(fr)

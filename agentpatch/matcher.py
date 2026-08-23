@@ -222,3 +222,53 @@ def count_matches(file_lines: list[str], old: list[str]) -> int:
     if hits:
         return len(hits)
     return len(_find_all(file_lines, old, str.rstrip))
+
+
+def count_substr(text: str, needle: str) -> int:
+    """Number of occurrences of needle in text, OVERLAPPING ones included.
+
+    Overlapping counting is the honest ambiguity measure: "aaa" containing
+    "aa" twice is genuinely ambiguous even though str.replace would only
+    touch one.
+    """
+    start = hits = 0
+    while True:
+        i = text.find(needle, start)
+        if i < 0:
+            return hits
+        hits += 1
+        start = i + 1
+
+
+def diagnose_substr(text: str, needle: str) -> str | None:
+    """Explain WHY an exact substring search failed, when a near miss exists.
+
+    Returns a human/model-readable hint or None. Checks the two relaxations
+    of the cascade in order (trailing whitespace, then leading indentation)
+    and reports the line number of the unique near-miss — feedback precise
+    enough for the model to fix its own edit next turn.
+    """
+    lines = text.split("\n")
+    want = needle.split("\n")
+    n = len(want)
+
+    def _scan(key):
+        keyed = [key(l) for l in want]
+        return [
+            i
+            for i in range(len(lines) - n + 1)
+            if [key(l) for l in lines[i : i + n]] == keyed
+        ]
+
+    for name, key in (
+        ("ignoring trailing whitespace", str.rstrip),
+        ("ignoring leading indentation", str.lstrip),
+    ):
+        hits = _scan(key)
+        if len(hits) == 1:
+            where = "" if n == 1 else f" (spanning {n} lines from there)"
+            return (
+                f"a match exists at line {hits[0] + 1} {name}{where}, "
+                "but not byte-exactly"
+            )
+    return None

@@ -14,7 +14,7 @@ deterministic, offline library + CLI. Full evidence trail in [PLAN.md](PLAN.md).
 
 ## Features
 
-- **Three formats, auto-detected** (or forced with `--format`):
+- **Four formats, auto-detected** (or forced with `--format`):
   - **V4A** (`*** Begin Patch` envelopes): Update / Add / Delete /
     Move-to rename, multiple `@@` hunks per file section — including the
     multi-hunk case Codex CLI itself mishandles.
@@ -30,6 +30,14 @@ deterministic, offline library + CLI. Full evidence trail in [PLAN.md](PLAN.md).
     positional hints: repeated context resolves to the hit nearest the
     declared position instead of failing as ambiguous, and zero-context
     insertion hunks (`@@ -5,0 +6,2 @@`) apply positionally.
+  - **str_replace pairs** (JSON in the shape of Claude Code's Edit tool /
+    OpenHands' str_replace_editor — `path`, `old_str`, `new_str`,
+    `replace_all`; `file_path`/`old_string`/`new_string` aliases accepted).
+    Byte-exact matching by contract: no fuzzy cascade. Uniqueness enforced —
+    0 occurrences fails (with a near-miss hint naming the line and which
+    relaxation would match), >1 fails unless `replace_all`. Edits within one
+    file apply sequentially (later edits see earlier results), partial-line
+    splices supported, CRLF preserved.
 - **Ellipsis elision**: a lone `...` line in a SEARCH/REPLACE block stands
   for any run of lines; keeping `...` in the replacement preserves the
   omitted middle, dropping it removes it (aider's try-dot-dot-dots
@@ -115,7 +123,23 @@ git diff > fix.diff
 agentpatch apply fix.diff -C myrepo      # detected automatically
 ```
 
-Auto-detection picks the format; `--format v4a|editblock|udiff` forces one.
+### str_replace pairs (JSON)
+
+```bash
+cat > fix.json <<'EOF'
+[{"path": "src/app.py",
+  "old_str": "def greet(name):\n    print(\"Hello\")",
+  "new_str": "def greet(name):\n    print(f\"Hello, {name}!\")"}]
+EOF
+agentpatch apply fix.json -C myrepo --json
+```
+
+This is the argument shape of Claude Code's Edit tool and OpenHands'
+str_replace_editor, so transcript replays and MCP payloads apply without
+translation. `old_str` must match exactly once unless `"replace_all": true`.
+
+Auto-detection picks the format; `--format v4a|editblock|udiff|stredit`
+forces one.
 
 ### Library
 
@@ -132,7 +156,6 @@ if not res.ok:
 
 ## Roadmap
 
-- M3 (remaining): str_replace pair mode (exact string replacement, not line lists)
 - M4: real-world failure-corpus benchmarks, ARCHITECTURE.md, v1.0
 
 ## Tests

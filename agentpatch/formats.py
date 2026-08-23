@@ -8,27 +8,30 @@ detect_format(), plus one entry in _PARSERS.
 
 from __future__ import annotations
 
-from . import editblock, udiff, v4a
+from . import editblock, stredit, udiff, v4a
 from .v4a import ParseError, Patch
 
 V4A = "v4a"
 EDITBLOCK = "editblock"
 UDIFF = "udiff"
+STREDIT = "stredit"
 
 _PARSERS = {
     V4A: v4a.parse_patch,
     EDITBLOCK: editblock.parse_patch,
     UDIFF: udiff.parse_patch,
+    STREDIT: stredit.parse_patch,
 }
 _DETECTORS = {
     V4A: v4a.detect_format,
     EDITBLOCK: editblock.detect_format,
     UDIFF: udiff.detect_format,
+    STREDIT: stredit.detect_format,
 }
 
 
 def detect(text: str) -> str | None:
-    for name in (V4A, EDITBLOCK, UDIFF):
+    for name in (V4A, EDITBLOCK, UDIFF, STREDIT):
         fmt = _DETECTORS[name](text)
         if fmt:
             return fmt

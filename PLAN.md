@@ -78,8 +78,9 @@ model output ──▶ formats.detect() ──▶ parser (v4a | editblock | udif
 ```
 
 Components: `formats.py` (detect/dispatch), `v4a.py`, `editblock.py`, `udiff.py`,
-`matcher.py` (cascade + uniqueness contract), `applier.py` (orchestration, overlap
-checks, back-to-front application, atomic writes), `cli.py`.
+`stredit.py`, `matcher.py` (cascade + uniqueness contract + substr primitives),
+`applier.py` (orchestration, overlap checks, back-to-front application, sequential
+substr splices, atomic writes), `cli.py`.
 Storage: none (pure transformation library). No servers, no network.
 
 Key decisions: stdlib-only (difflib for fuzziness); paths validated relative, no
@@ -99,11 +100,15 @@ detection before any write; dry-run by default in `check` mode.
 - **M3**: Unified diff ingestion; str_replace pair mode; "did you mean" hint
   generation (nearest-window SequenceMatcher reporting, aider-style feedback block).
   → s25: hints SHIPPED (matcher.nearest_window + failure messages carry
-  "nearest similar text at line N (x.xx similar)"). ✅ s26: udiff SHIPPED —
-  count-driven parser, @@ line_hint disambiguation (nearest hit wins without
-  weakening the no-hint uniqueness contract), zero-context insertions apply
-  positionally clamped to EOF, `\ No newline`, /dev/null sections, `--`
-  -prefixed removals never read as headers. str_replace pair mode remains.
+  "nearest similar text at line N (x.xx similar)"). ✅ s26: udiff SHIPPED.
+  ✅ s27: str_replace pair mode SHIPPED — M3 COMPLETE. JSON wire format
+  (stredit.py) speaking Claude Code Edit / OpenHands str_replace_editor
+  argument shape (path|file_path × old_str|old_string × new_str|new_string,
+  replace_all); Hunk.mode="substr" + Hunk.replace_all; applier applies substr
+  hunks SEQUENTIALLY in text space after any line hunks (later edits see
+  earlier results), byte-exact only (no cascade), overlapping-inclusive
+  occurrence counting, near-miss diagnostics report WHICH relaxation would
+  match and at what line; RFC6902 arrays never stolen by detection.
 - **M4**: Indent-flex insertion re-indentation polish, CRLF policy knobs, benchmark
   corpus (replay real-world failed patches from public issues as fixtures),
   ARCHITECTURE.md, v1.0 tag.
@@ -139,7 +144,23 @@ detection before any write; dry-run by default in `check` mode.
  with empty bodies stay legal (git emits them for empty files). detect order stays
  v4a → editblock → udiff so fenced SEARCH blocks containing '--- ' aren't stolen.
 - s26 lesson: WRITE FIXTURE ARITHMETIC CAREFULLY — ctx+rem must equal old_count
- and ctx+ins must equal new_count; two fixtures had impossible tallies and the
- (correct) count-driven parser ate the next file section as hunk body instead of
- erroring. Malformed-count garbage-in/garbage-out is GNU-faithful behavior; test
- with well-formed diffs and pin malformed ones separately.
+  and ctx+ins must equal new_count; two fixtures had impossible tallies and the
+  (correct) count-driven parser ate the next file section as hunk body instead of
+  erroring. Malformed-count garbage-in/garbage-out is GNU-faithful behavior; test
+  with well-formed diffs and pin malformed ones separately.
+- s27 stredit decisions: substr hunks apply SEQUENTIALLY against evolving text
+  (tool-call semantics) while line hunks keep the locate-all + back-to-front
+  path; mixed ops run line hunks first, then substr on the intermediate result —
+  any failure anywhere leaves the file untouched (atomicity preserved).
+  Occurrence counting includes OVERLAPS ("aa" in "aaaa" counts twice → ambiguous)
+  but replace_all replaces non-overlapping left-to-right (str.replace semantics).
+  A splice that extends a newline to EOF flips trailing-newline on for the write.
+  Detection claims edit-shaped JSON only: object with an edit key, or array of
+  dicts with no "op" key and >=1 edit key, or [] (claimed so the parser's precise
+  error beats a generic unrecognized-format exit); RFC6902 stays unclaimed.
+  Empty old_str is a ParseError; missing new_str = deletion; empty replace result
+  at whole-file scope writes an empty file.
+- s27 lesson: SUBSTRING SEARCH FINDS PARTIAL-LINE MATCHES THE LINE CASCADE WOULD
+  MISS — smoke-test fixtures written for line-mode intuition misfired twice ("A"
+  matches both lines of "A\nA2"; replacing ":alpha" doesn't change "alpha = 0").
+  Write substring fixtures from substring semantics, not line lists.

@@ -7,11 +7,12 @@ fed back to the model.
 """
 
 from .applier import ApplyError, FileResult, HunkResult, PatchResult, apply_patch
-from .formats import EDITBLOCK, V4A, detect, parse_patch
+from .formats import EDITBLOCK, STREDIT, V4A, detect, parse_patch
 from .matcher import DEFAULT_THRESHOLD
 from .v4a import (
     ADD,
     DELETE,
+    SUBSTR,
     UPDATE,
     FileOp,
     Hunk,
@@ -20,12 +21,14 @@ from .v4a import (
     Patch,
 )
 
-VERSION = "0.2.0"
+VERSION = "0.3.0"
 
 __all__ = [
     "ADD",
     "DELETE",
     "EDITBLOCK",
+    "STREDIT",
+    "SUBSTR",
     "UPDATE",
     "ApplyError",
     "DEFAULT_THRESHOLD",

@@ -31,6 +31,7 @@ class InvalidPath(ParseError):
 UPDATE = "update"
 ADD = "add"
 DELETE = "delete"
+SUBSTR = "substr"               # Hunk.mode value: exact-string search/replace
 
 _BEGIN = "*** Begin Patch"
 _END = "*** End Patch"
@@ -43,6 +44,7 @@ class Hunk:
     new_lines: list[str] = field(default_factory=list)
     mode: str = "lines"           # lines | substr
     line_hint: int | None = None  # 0-based expected position (udiff @@ header)
+    replace_all: bool = False     # substr mode only: replace every occurrence
 
 
 @dataclass
