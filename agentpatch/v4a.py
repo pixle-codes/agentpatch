@@ -41,6 +41,8 @@ class Hunk:
     anchor: str | None
     old_lines: list[str] = field(default_factory=list)
     new_lines: list[str] = field(default_factory=list)
+    mode: str = "lines"           # lines | substr
+    line_hint: int | None = None  # 0-based expected position (udiff @@ header)
 
 
 @dataclass

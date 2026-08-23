@@ -160,11 +160,16 @@ def locate(
     new: list[str],
     threshold: float = DEFAULT_THRESHOLD,
     search_from: int = 0,
+    hint: int | None = None,
 ) -> Match | None:
     """Return the winning Match, or None on zero hits or ambiguity.
 
     search_from restricts matching to lines at/after that index (used for
     soft @@ anchors); returned line_start stays an absolute file index.
+    hint (0-based expected position, from udiff @@ headers) breaks ties:
+    with several hits at the deciding level the one nearest the hint wins
+    instead of failing as ambiguous. Formats without positional metadata
+    keep the strict uniqueness contract by leaving hint=None.
     """
     if not old:
         return None
@@ -181,7 +186,13 @@ def locate(
                 repl = _reindent(old, new, file_lines[i])
             return Match(strategy, i, 1.0, repl)
         if len(hits) > 1:
-            return None  # ambiguous; looser levels cannot fix it
+            if hint is None:
+                return None  # ambiguous; looser levels cannot fix it
+            i = min(hits, key=lambda h: abs(h - hint))
+            repl = new
+            if strategy == INDENT_FLEX:
+                repl = _reindent(old, new, file_lines[i])
+            return Match(strategy, i, 1.0, repl)
     return _fuzzy_locate(file_lines[search_from:], old, new, threshold, search_from)
 
 

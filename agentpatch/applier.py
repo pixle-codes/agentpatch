@@ -155,16 +155,27 @@ def _locate_all(
     for idx, hunk in enumerate(op_hunks):
         old, new = hunk.old_lines, hunk.new_lines
         if not old:
-            results.append(
-                HunkResult(idx, "failed",
-                           message="hunk has no context to anchor its position")
-            )
+            if hunk.line_hint is not None and new:
+                # udiff pure insertion ("@@ -5,0 +6,2 @@"): no context to
+                # match; the @@ header position is authoritative.
+                start = min(hunk.line_hint, len(file_lines))
+                placed.append(_Placed(start, 0, list(new), idx))
+                results.append(
+                    HunkResult(idx, "applied", strategy="position", similarity=1.0,
+                               line_start=start + 1)
+                )
+            else:
+                results.append(
+                    HunkResult(idx, "failed",
+                               message="hunk has no context to anchor its position")
+                )
             continue
         start = _anchor_region(file_lines, hunk.anchor)
         if has_ellipsis(old):
             m = locate_ellipsis(file_lines, old, new, search_from=start)
         else:
-            m = locate(file_lines, old, new, threshold, search_from=start)
+            m = locate(file_lines, old, new, threshold,
+                       search_from=start, hint=hunk.line_hint)
         if m is None:
             if has_ellipsis(old):
                 msg = (

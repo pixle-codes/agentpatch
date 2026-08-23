@@ -11,11 +11,11 @@ import json
 import sys
 
 from .applier import ApplyError, PatchResult, apply_patch
-from .formats import EDITBLOCK, V4A, detect, parse_patch
+from .formats import EDITBLOCK, UDIFF, V4A, detect, parse_patch
 from .v4a import ParseError
 
 VERSION = "0.2.0"
-_FORMAT_CHOICES = ("auto", V4A, EDITBLOCK)
+_FORMAT_CHOICES = ("auto", V4A, EDITBLOCK, UDIFF)
 
 
 def _read_patch(path: str) -> str:
@@ -145,7 +145,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="agentpatch",
         description="Parse and apply coding-agent patches (V4A, SEARCH/REPLACE "
-        "blocks) with layered fuzzy matching and structured diagnostics.",
+        "blocks, unified diffs) with layered fuzzy matching and structured "
+        "diagnostics.",
     )
     p.add_argument("--version", action="version", version=f"agentpatch {VERSION}")
     sub = p.add_subparsers(dest="command", required=True)
