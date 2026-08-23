@@ -165,3 +165,21 @@ class EllipsisApplyTests(ApplyBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DidYouMeanHintTests(ApplyBase):
+    def test_near_miss_gets_nearest_line_hint(self):
+        self.wfile("a.py", "alpha\nbeta\ngamma\ndelta\n")
+        text = block("a.py", "beta\nGAMMA\n", "B2\n")
+        res = self.apply(text)
+        msg = res.files[0].hunks[0].message
+        self.assertFalse(res.ok)
+        self.assertIsNotNone(msg)
+        self.assertIn("nearest similar text at line 2", msg)
+
+    def test_far_miss_has_no_hint(self):
+        self.wfile("a.py", "one\ntwo\n")
+        res = self.apply(block("a.py", "zzzz\nyyyy\nxxxx\n", "q\n"))
+        msg = res.files[0].hunks[0].message
+        self.assertIn("could not find", msg)
+        self.assertNotIn("nearest", msg)

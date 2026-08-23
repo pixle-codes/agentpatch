@@ -36,6 +36,9 @@ deterministic, offline library + CLI. Full evidence trail in [PLAN.md](PLAN.md).
   5. `fuzzy` — best sliding-window similarity >= threshold (default 0.85)
 - **Uniqueness contract**: ambiguous matches fail loudly with a location count
   instead of silently editing the wrong block.
+- **"Did you mean" diagnostics**: when a hunk can't be located, the failure
+  message reports the nearest similar text's line number and similarity, ready
+  to feed back to the model for self-correction next turn.
 - **Per-file atomicity**: one bad hunk leaves the whole file untouched.
 - **Overlap detection**: overlapping hunks are both rejected (ellipsis hunks
   count their full consumed span).
@@ -115,7 +118,7 @@ if not res.ok:
 
 ## Roadmap
 
-- M3: unified diffs, str_replace pairs, "did you mean" nearest-context hints
+- M3 (remaining): unified diffs, str_replace pair mode
 - M4: real-world failure-corpus benchmarks, ARCHITECTURE.md, v1.0
 
 ## Tests

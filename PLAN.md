@@ -98,6 +98,8 @@ detection before any write; dry-run by default in `check` mode.
   ellipsis strategy in matcher + `--format` CLI flag; 95 tests green.
 - **M3**: Unified diff ingestion; str_replace pair mode; "did you mean" hint
   generation (nearest-window SequenceMatcher reporting, aider-style feedback block).
+  → s25: hints SHIPPED (matcher.nearest_window + failure messages carry
+  "nearest similar text at line N (x.xx similar)"); udiff + str_replace remain.
 - **M4**: Indent-flex insertion re-indentation polish, CRLF policy knobs, benchmark
   corpus (replay real-world failed patches from public issues as fixtures),
   ARCHITECTURE.md, v1.0 tag.

@@ -16,8 +16,11 @@ from .matcher import (
     has_ellipsis,
     locate,
     locate_ellipsis,
+    nearest_window,
 )
 from .v4a import DELETE, Patch
+
+HINT_FLOOR = 0.40
 
 
 class ApplyError(Exception):
@@ -170,11 +173,18 @@ def _locate_all(
                 )
             else:
                 n = count_matches(file_lines[start:], old)
-                msg = (
-                    f"hunk matches {n} locations (ambiguous; add more unique context)"
-                    if n > 1
-                    else "could not find the target lines in this file"
-                )
+                if n > 1:
+                    msg = (
+                        f"hunk matches {n} locations (ambiguous; add more unique context)"
+                    )
+                else:
+                    msg = "could not find the target lines in this file"
+                    hint = nearest_window(file_lines[start:], old)
+                    if hint and hint[1] >= HINT_FLOOR:
+                        msg += (
+                            f"; nearest similar text at line {start + hint[0] + 1} "
+                            f"({hint[1]:.2f} similar)"
+                        )
             results.append(HunkResult(idx, "failed", message=msg))
             continue
         span = m.span_len if m.span_len is not None else len(old)

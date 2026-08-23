@@ -185,6 +185,26 @@ def locate(
     return _fuzzy_locate(file_lines[search_from:], old, new, threshold, search_from)
 
 
+def nearest_window(
+    file_lines: list[str], old: list[str]
+) -> tuple[int, float] | None:
+    """Best sliding-window similarity for diagnostics ("did you mean").
+
+    Returns (0-based line_start, ratio) or None when old is empty or the
+    file is shorter than old.
+    """
+    n = len(old)
+    if n == 0 or len(file_lines) < n:
+        return None
+    target = "\n".join(old)
+    best_i, best = -1, 0.0
+    for i in range(len(file_lines) - n + 1):
+        score = SequenceMatcher(None, target, "\n".join(file_lines[i : i + n])).ratio()
+        if score > best:
+            best_i, best = i, score
+    return (best_i, round(best, 4)) if best_i >= 0 else None
+
+
 def count_matches(file_lines: list[str], old: list[str]) -> int:
     """Exact-match count, falling back to eol-tolerant count."""
     hits = _find_all(file_lines, old, lambda l: l)
